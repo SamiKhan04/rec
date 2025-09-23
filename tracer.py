@@ -1,58 +1,68 @@
-# tree = {}
-# def trace(fn):
-#     def wrapper(*args, **kwargs):
-#       parent = wrapper.call
-#       wrapper.call += 1
-#       result = fn(*args, **kwargs)
-#       tree[wrapper.call] = (parent, args, result)
-#       return result
-#     wrapper.call = 0
-#     return wrapper
+from collections import defaultdict
+from functools import wraps
 
 
+class _TraceState:
+    __slots__ = ("next_id", "stack")
 
-# @trace
-# def fib(n):
-#   if n == 0 or n == 1:
-#       return n
-#   return fib(n-1) + fib(n-2)
+    def __init__(self):
+        self.next_id = 0
+        self.stack: list[int] = []
 
-tree = {}
-def trace(tree_dict):
-    def deco(fn):
-        next_id = 0
-        stack = []  # holds node ids of the active call chain
+    def push(self):
+        node_id = self.next_id
+        self.next_id += 1
+        parent = self.stack[-1] if self.stack else None
+        self.stack.append(node_id)
+        return node_id, parent
 
+    def pop(self):
+        if self.stack:
+            self.stack.pop()
+
+    def reset(self):
+        self.next_id = 0
+        self.stack.clear()
+
+
+_state = _TraceState()
+tree: dict[int, tuple] = {}
+
+
+def _make_tracer(tree_dict: dict[int, tuple]):
+    def decorator(fn):
+        @wraps(fn)
         def wrapper(*args, **kwargs):
-            nonlocal next_id, stack
-            my_id = next_id; next_id += 1
-            parent = stack[-1] if stack else None
-
-            stack.append(my_id)
+            node_id, parent = _state.push()
             try:
                 result = fn(*args, **kwargs)
-                tree_dict[my_id] = (parent, args, kwargs, result)
+                tree_dict[node_id] = (parent, args, kwargs, result)
                 return result
             finally:
-                stack.pop()
+                _state.pop()
+
         return wrapper
-    return deco
 
-@trace(tree)
-def fib(n):
-  if n == 0 or n == 1:
-      return n
-  return fib(n-1) + fib(n-2)
+    return decorator
 
-from collections import defaultdict
+
+def trace(arg=None):
+    """Decorator that records calls into the global ``tree`` by default."""
+    if callable(arg):
+        return _make_tracer(tree)(arg)
+    target = tree if arg is None else arg
+    return _make_tracer(target)
+
+
+def reset_trace(tree_dict=None):
+    """Clear the recorded tree and reset tracing state."""
+    target = tree if tree_dict is None else tree_dict
+    target.clear()
+    _state.reset()
+
 
 def _build_children(tree: dict[int, tuple]):
-    """
-    Build adjacency from your {id: (parent, args, kwargs, ret)} mapping.
-    Returns (children, roots) where:
-      children[parent_id] = [child_id, ...]  (in insertion order)
-      roots = [id, ...]  (nodes whose parent is None)
-    """
+    """Build adjacency from {id: (parent, args, kwargs, ret)} mapping."""
     children = defaultdict(list)
     roots = []
     for nid, (par, *_rest) in tree.items():
@@ -61,16 +71,13 @@ def _build_children(tree: dict[int, tuple]):
         children[par].append(nid)
     return children, roots
 
+
 def dfs(tree: dict[int, tuple], start: int | None = None, visit=lambda nid, node, depth: None):
-    """
-    Depth-first traversal over your call tree.
-      - If `start` is None, it traverses all roots (in creation order).
-      - `visit(nid, node, depth)` is called pre-order for each node.
-    """
+    """Depth-first traversal over the call tree."""
     children, roots = _build_children(tree)
 
     def _walk(nid: int, depth: int):
-        node = tree[nid]  # (parent, args, kwargs, ret)
+        node = tree[nid]
         visit(nid, node, depth)
         for c in children.get(nid, []):
             _walk(c, depth + 1)
@@ -81,25 +88,16 @@ def dfs(tree: dict[int, tuple], start: int | None = None, visit=lambda nid, node
     else:
         _walk(start, 0)
 
-# ------------------------------
-# Pretty ASCII text visualization
-# ------------------------------
 
 def print_ascii_tree(tree: dict[int, tuple], label_fn=None):
-    """
-    Prints an ASCII tree using box-drawing characters.
-
-    label_fn: optional callable (nid, node_tuple) -> str
-              Defaults to 'fib(args) -> ret' style label.
-    """
+    """Print an ASCII tree using box-drawing characters."""
     children, roots = _build_children(tree)
 
     def default_label(nid, node):
         _par, args, kwargs, ret = node
         if kwargs:
             return f"#{nid}({', '.join(map(repr, args))}, **{kwargs}) -> {ret!r}"
-        else:
-            return f"#{nid}({', '.join(map(repr, args))}) -> {ret!r}"
+        return f"#{nid}({', '.join(map(repr, args))}) -> {ret!r}"
 
     if label_fn is None:
         label_fn = default_label
@@ -109,29 +107,23 @@ def print_ascii_tree(tree: dict[int, tuple], label_fn=None):
         connector = "└── " if is_last else "├── "
         print(prefix + connector + label_fn(nid, node))
         kids = children.get(nid, [])
-        # Prefix for children: if current is last, spaces; else, vertical bar
         child_prefix = prefix + ("    " if is_last else "│   ")
         for i, c in enumerate(kids):
             _recurse(c, child_prefix, i == len(kids) - 1)
 
-    # If multiple roots (e.g., you traced multiple top-level calls), print each.
     for r_i, r in enumerate(roots):
         print(label_fn(r, tree[r]))
         kids = children.get(r, [])
         for i, c in enumerate(kids):
             _recurse(c, "", i == len(kids) - 1)
         if r_i != len(roots) - 1:
-            print()  # blank line between root components
+            print()
 
-# ------------------------------
-# Minimal indent-only variant (no box chars)
-# ------------------------------
 
 def print_indented(tree: dict[int, tuple]):
-    """
-    Simpler, space-indented view: each level indented by two spaces.
-    """
+    """Simpler, space-indented view of the call tree."""
     children, roots = _build_children(tree)
+
     def _walk(nid: int, depth: int):
         _par, args, kwargs, ret = tree[nid]
         args_s = ", ".join(map(repr, args))
@@ -139,5 +131,18 @@ def print_indented(tree: dict[int, tuple]):
         print("  " * depth + f"#{nid}({args_s}{kw_s}) -> {ret!r}")
         for c in children.get(nid, []):
             _walk(c, depth + 1)
+
     for r in roots:
         _walk(r, 0)
+
+
+if __name__ == '__main__':
+    @trace
+    def fib(n):
+        if n in (0, 1):
+            return n
+        return fib(n - 1) + fib(n - 2)
+
+    reset_trace()
+    fib(4)
+    print_ascii_tree(tree)
