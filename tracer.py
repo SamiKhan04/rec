@@ -36,7 +36,7 @@ def _make_tracer(tree_dict: dict[int, tuple]):
             node_id, parent = _state.push()
             try:
                 result = fn(*args, **kwargs)
-                tree_dict[node_id] = (parent, args, kwargs, result)
+                tree_dict[node_id] = (parent, fn.__name__, args, kwargs, result)
                 return result
             finally:
                 _state.pop()
@@ -62,7 +62,7 @@ def reset_trace(tree_dict=None):
 
 
 def _build_children(tree: dict[int, tuple]):
-    """Build adjacency from {id: (parent, args, kwargs, ret)} mapping."""
+    """Build adjacency from {id: (parent, fn_name, args, kwargs, ret)} mapping."""
     children = defaultdict(list)
     roots = []
     for nid, (par, *_rest) in tree.items():
@@ -94,10 +94,11 @@ def print_ascii_tree(tree: dict[int, tuple], label_fn=None):
     children, roots = _build_children(tree)
 
     def default_label(nid, node):
-        _par, args, kwargs, ret = node
+        _par, fn_name, args, kwargs, ret = node
+        args_label = ", ".join(map(repr, args))
         if kwargs:
-            return f"#{nid}({', '.join(map(repr, args))}, **{kwargs}) -> {ret!r}"
-        return f"#{nid}({', '.join(map(repr, args))}) -> {ret!r}"
+            return f"{fn_name}#{nid}({args_label}, **{kwargs}) -> {ret!r}"
+        return f"{fn_name}#{nid}({args_label}) -> {ret!r}"
 
     if label_fn is None:
         label_fn = default_label
@@ -125,10 +126,10 @@ def print_indented(tree: dict[int, tuple]):
     children, roots = _build_children(tree)
 
     def _walk(nid: int, depth: int):
-        _par, args, kwargs, ret = tree[nid]
+        _par, fn_name, args, kwargs, ret = tree[nid]
         args_s = ", ".join(map(repr, args))
         kw_s = (", **" + repr(kwargs)) if kwargs else ""
-        print("  " * depth + f"#{nid}({args_s}{kw_s}) -> {ret!r}")
+        print("  " * depth + f"{fn_name}#{nid}({args_s}{kw_s}) -> {ret!r}")
         for c in children.get(nid, []):
             _walk(c, depth + 1)
 
