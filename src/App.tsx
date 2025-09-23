@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 type MeshPhysicalMaterial = InstanceType<typeof THREE.MeshPhysicalMaterial>;
@@ -170,6 +170,8 @@ function App() {
   const codeInputRef = useRef<HTMLTextAreaElement | null>(null);
   const callInputRef = useRef<HTMLTextAreaElement | null>(null);
   const graphContainerRef = useRef<HTMLDivElement | null>(null);
+  const hasAutoRunRef = useRef(false);
+  const hasUserEditedRef = useRef(false);
 
   useEffect(() => {
     async function loadPyodide() {
@@ -412,16 +414,18 @@ function App() {
   }, [graphData]);
 
   const handleCodeChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    hasUserEditedRef.current = true;
     setCode(e.currentTarget.value);
     adjustTextarea(e.currentTarget);
   };
 
   const handleCallChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    hasUserEditedRef.current = true;
     setCallExpression(e.currentTarget.value);
     adjustTextarea(e.currentTarget);
   };
 
-  const handleRunClick = async () => {
+  const handleRunClick = useCallback(async () => {
     setError('');
     setResult(null);
     setStdout('');
@@ -558,7 +562,15 @@ function App() {
     } finally {
       setIsRunning(false);
     }
-  };
+  }, [callExpression, code, pyodideReady]);
+
+  useEffect(() => {
+    if (!pyodideReady || hasAutoRunRef.current || hasUserEditedRef.current) {
+      return;
+    }
+    hasAutoRunRef.current = true;
+    void handleRunClick();
+  }, [handleRunClick, pyodideReady]);
 
   return (
     <div className="app-layout">
