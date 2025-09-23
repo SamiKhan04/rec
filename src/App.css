@@ -9,9 +9,9 @@ button:hover {
 }
 
 #root {
-  max-width: 960px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 3rem 1.5rem 4rem;
+  padding: 3.5rem 1.75rem 4.5rem;
 }
 
 .app-layout {
@@ -22,9 +22,9 @@ button:hover {
 }
 
 .input-box {
-  background: #050505;
+  background: radial-gradient(circle at 18% 12%, rgba(59, 130, 246, 0.12), rgba(2, 6, 23, 0.92));
   border-radius: 16px;
-  box-shadow: 0px 20px 45px rgba(10, 93, 131, 0.18);
+  box-shadow: 0px 28px 60px rgba(13, 148, 136, 0.08), 0px 18px 40px rgba(37, 99, 235, 0.18);
   padding: 32px 28px;
   display: flex;
   flex-direction: column;
@@ -121,9 +121,9 @@ button:hover {
 }
 
 .panel {
-  background: #07070a;
+  background: rgba(7, 7, 10, 0.92);
   border-radius: 16px;
-  box-shadow: 0px 16px 40px rgba(10, 93, 131, 0.16);
+  box-shadow: 0px 24px 50px rgba(15, 23, 42, 0.28);
   padding: 24px 22px;
   color: #e8ecf1;
   text-align: left;
@@ -146,9 +146,9 @@ button:hover {
 }
 
 .tree-box {
-  background: #050505;
+  background: linear-gradient(140deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.98));
   border-radius: 16px;
-  box-shadow: 0px 24px 50px rgba(10, 93, 131, 0.18);
+  box-shadow: 0px 32px 70px rgba(30, 64, 175, 0.22);
   padding: 28px;
   color: #f1f1f5;
   text-align: left;
@@ -171,12 +171,21 @@ button:hover {
 
 .tree-canvas {
   position: relative;
-  height: 460px;
-  background: radial-gradient(circle at 30% 20%, rgba(59, 130, 246, 0.22), rgba(15, 23, 42, 0.92));
+  height: 520px;
+  background: radial-gradient(circle at 20% 18%, rgba(59, 130, 246, 0.3), rgba(37, 99, 235, 0.08) 48%, rgba(2, 6, 23, 0.96));
   border-radius: 18px;
   overflow: hidden;
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  box-shadow: inset 0 0 40px rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(94, 234, 212, 0.12);
+  box-shadow: inset 0 0 55px rgba(15, 23, 42, 0.7), 0 20px 80px rgba(14, 116, 144, 0.28);
+}
+
+.tree-canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 80% 18%, rgba(34, 211, 238, 0.18), transparent 55%);
+  mix-blend-mode: screen;
+  pointer-events: none;
 }
 
 .tree-canvas-mount {
@@ -203,14 +212,17 @@ button:hover {
   align-items: flex-start;
   justify-content: flex-end;
   padding: 16px 18px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  color: rgba(226, 232, 240, 0.72);
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.55), transparent 45%);
+  color: rgba(226, 232, 240, 0.7);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.55), transparent 48%);
+  backdrop-filter: blur(6px);
 }
 
 .tree-ascii {
-  background: rgba(2, 6, 23, 0.85);
+  background: rgba(2, 6, 23, 0.88);
   border-radius: 14px;
   padding: 20px 22px;
   border: 1px solid rgba(148, 163, 184, 0.22);
@@ -235,7 +247,7 @@ button:hover {
 
 @media (max-width: 768px) {
   #root {
-    padding: 2.5rem 1rem 3rem;
+    padding: 2.5rem 1rem 3.2rem;
   }
 
   .input-box {
@@ -247,6 +259,6 @@ button:hover {
   }
 
   .tree-canvas {
-    height: 380px;
+    height: 420px;
   }
 }

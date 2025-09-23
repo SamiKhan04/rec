@@ -1,5 +1,7 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+
+type MeshPhysicalMaterial = InstanceType<typeof THREE.MeshPhysicalMaterial>;
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import './App.css';
 import { TRACER_PY } from './tracerPrelude';
@@ -75,9 +77,9 @@ function computeTreeLayout(nodes: TraceNode[]): LayoutResult {
     levels.set(node.depth, list);
   });
 
-  const horizontalSpacing = 9;
-  const verticalSpacing = 7;
-  const depthSpacing = 2.8;
+  const horizontalSpacing = 16;
+  const verticalSpacing = 11;
+  const depthSpacing = 6;
 
   levels.forEach((levelNodes, depth) => {
     levelNodes.sort((a, b) => a.id - b.id);
@@ -85,9 +87,10 @@ function computeTreeLayout(nodes: TraceNode[]): LayoutResult {
     const xOffset = (count - 1) * horizontalSpacing * 0.5;
     const zOffset = (count - 1) * depthSpacing * 0.5;
     levelNodes.forEach((node, index) => {
+      const siblingJitter = (index % 2 === 0 ? 1 : -1) * (depth + 1) * 0.6;
       node.x = index * horizontalSpacing - xOffset;
       node.y = -depth * verticalSpacing;
-      node.z = index * depthSpacing - zOffset + depth * 0.6;
+      node.z = index * depthSpacing - zOffset + depth * 1.2 + siblingJitter;
     });
   });
 
@@ -123,8 +126,14 @@ function createLabelSprite(text: string): LabelResources | null {
     return null;
   }
   context.font = fontDeclaration;
-  context.fillStyle = 'rgba(15, 23, 42, 0.82)';
+  const gradient = context.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, 'rgba(30, 64, 175, 0.92)');
+  gradient.addColorStop(1, 'rgba(15, 23, 42, 0.92)');
+  context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
+  context.strokeStyle = 'rgba(148, 163, 184, 0.38)';
+  context.lineWidth = 2;
+  context.strokeRect(1, 1, width - 2, height - 2);
   context.fillStyle = '#f8fafc';
   context.textBaseline = 'middle';
   context.fillText(text, padding / 2, height / 2);
@@ -211,52 +220,72 @@ function App() {
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x020617);
+    scene.fog = new THREE.FogExp2(0x020617, 0.014);
 
-    const camera = new THREE.PerspectiveCamera(48, width / height, 0.1, 2000);
-    camera.position.set(0, 0, 60);
+    const camera = new THREE.PerspectiveCamera(48, width / height, 0.1, 3000);
+    camera.position.set(0, 0, 90);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(width, height, false);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
     container.appendChild(renderer.domElement);
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
+    controls.dampingFactor = 0.12;
     controls.target.set(0, 0, 0);
-    controls.maxDistance = 220;
-    controls.minDistance = 12;
+    controls.maxDistance = 360;
+    controls.minDistance = 16;
 
-    const ambientLight = new THREE.AmbientLight(0xf8fafc, 0.55);
+    const ambientLight = new THREE.AmbientLight(0xf8fafc, 0.38);
     scene.add(ambientLight);
-    const keyLight = new THREE.DirectionalLight(0x93c5fd, 0.9);
-    keyLight.position.set(26, 34, 60);
+    const keyLight = new THREE.DirectionalLight(0x93c5fd, 1.1);
+    keyLight.position.set(36, 46, 80);
+    keyLight.castShadow = false;
     scene.add(keyLight);
-    const fillLight = new THREE.DirectionalLight(0x1d4ed8, 0.35);
-    fillLight.position.set(-32, -28, -40);
+    const rimLight = new THREE.PointLight(0x38bdf8, 1.8, 320, 2);
+    rimLight.position.set(-58, 42, -24);
+    scene.add(rimLight);
+    const fillLight = new THREE.DirectionalLight(0x1d4ed8, 0.4);
+    fillLight.position.set(-52, -38, -60);
     scene.add(fillLight);
 
     const layout = computeTreeLayout(graphData);
     const nodeLookup = new Map(layout.nodes.map((node) => [node.id, node]));
 
-    const nodeGeometry = new THREE.SphereGeometry(1.4, 32, 32);
-    const nodeMaterial = new THREE.MeshStandardMaterial({
-      color: 0x60a5fa,
-      emissive: 0x1e3a8a,
-      emissiveIntensity: 0.38,
-      roughness: 0.45,
-      metalness: 0.12,
+    const nodeGeometry = new THREE.SphereGeometry(1.8, 48, 48);
+    const baseMaterial = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(0x38bdf8),
+      emissive: new THREE.Color(0x1e3a8a),
+      emissiveIntensity: 0.28,
+      roughness: 0.32,
+      metalness: 0.68,
+      clearcoat: 0.85,
+      clearcoatRoughness: 0.18,
+      sheen: 1,
+      sheenColor: new THREE.Color(0x93c5fd),
+      sheenRoughness: 0.4,
     });
-    const rootMaterial = new THREE.MeshStandardMaterial({
-      color: 0xfbbf24,
-      emissive: 0x92400e,
+    const rootMaterial = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(0xfbbf24),
+      emissive: new THREE.Color(0x92400e),
       emissiveIntensity: 0.32,
-      roughness: 0.4,
-      metalness: 0.08,
+      roughness: 0.28,
+      metalness: 0.55,
+      clearcoat: 0.72,
+      clearcoatRoughness: 0.2,
     });
-    const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 1 });
+    const edgeMaterial = new THREE.LineBasicMaterial({
+      color: 0x94a3b8,
+      linewidth: 1,
+      transparent: true,
+      opacity: 0.66,
+    });
 
     const labelsGroup = new THREE.Group();
     const nodesGroup = new THREE.Group();
@@ -266,9 +295,28 @@ function App() {
     const labelResources: LabelResources[] = [];
     type DisposableLine = { geometry: { dispose: () => void } };
     const lines: DisposableLine[] = [];
+    const nodeMaterials: MeshPhysicalMaterial[] = [];
+
+    const materialCache = new Map<number, MeshPhysicalMaterial>();
+    const getMaterialForNode = (depth: number, isRoot: boolean): MeshPhysicalMaterial => {
+      if (isRoot) {
+        return rootMaterial;
+      }
+      if (materialCache.has(depth)) {
+        return materialCache.get(depth)!;
+      }
+      const material = baseMaterial.clone();
+      const depthHue = Math.max(0.48 - depth * 0.04, 0.18);
+      material.color = new THREE.Color().setHSL(depthHue, 0.66, 0.58);
+      material.emissive = new THREE.Color().setHSL(depthHue - 0.08, 0.78, 0.28);
+      material.sheenColor = new THREE.Color().setHSL(depthHue, 0.4, 0.78);
+      materialCache.set(depth, material);
+      nodeMaterials.push(material);
+      return material;
+    };
 
     layout.nodes.forEach((node) => {
-      const mesh = new THREE.Mesh(nodeGeometry, node.parent === null ? rootMaterial : nodeMaterial);
+      const mesh = new THREE.Mesh(nodeGeometry, getMaterialForNode(node.depth, node.parent === null));
       mesh.position.set(node.x, node.y, node.z);
       nodesGroup.add(mesh);
 
@@ -280,7 +328,7 @@ function App() {
       const labelText = `${node.functionName}(${truncatedArgs}) → ${truncatedResult}`;
       const label = createLabelSprite(labelText.trim());
       if (label) {
-        label.sprite.position.set(node.x, node.y + 4.2, node.z);
+        label.sprite.position.set(node.x, node.y + 5.2, node.z);
         labelsGroup.add(label.sprite);
         labelResources.push(label);
       }
@@ -292,10 +340,15 @@ function App() {
       if (!parentNode || !childNode) {
         return;
       }
-      const points = [
-        new THREE.Vector3(parentNode.x, parentNode.y, parentNode.z),
-        new THREE.Vector3(childNode.x, childNode.y, childNode.z),
-      ];
+      const start = new THREE.Vector3(parentNode.x, parentNode.y, parentNode.z);
+      const end = new THREE.Vector3(childNode.x, childNode.y, childNode.z);
+      const control = new THREE.Vector3(
+        (parentNode.x + childNode.x) / 2,
+        (parentNode.y + childNode.y) / 2 + Math.max(5, Math.abs(parentNode.y - childNode.y) * 0.35),
+        (parentNode.z + childNode.z) / 2 + (childNode.depth - parentNode.depth) * 2
+      );
+      const curve = new THREE.QuadraticBezierCurve3(start, control, end);
+      const points = curve.getPoints(48);
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
       const line = new THREE.Line(geometry, edgeMaterial);
       scene.add(line);
@@ -307,7 +360,11 @@ function App() {
       const size = bounds.getSize(new THREE.Vector3());
       const center = bounds.getCenter(new THREE.Vector3());
       const maxDimension = Math.max(size.x, size.y, size.z);
-      camera.position.set(center.x + maxDimension * 1.2, center.y + maxDimension * 0.9, center.z + maxDimension * 2.4 + 20);
+      camera.position.set(
+        center.x + maxDimension * 1.35,
+        center.y + maxDimension * 1.05,
+        center.z + maxDimension * 2.8 + 36
+      );
       controls.target.copy(center);
       controls.update();
     }
@@ -339,12 +396,14 @@ function App() {
         container.removeChild(renderer.domElement);
       }
       nodeGeometry.dispose();
-      nodeMaterial.dispose();
+      baseMaterial.dispose();
       rootMaterial.dispose();
       edgeMaterial.dispose();
       lines.forEach((line) => {
         line.geometry.dispose();
       });
+      nodeMaterials.forEach((material) => material.dispose());
+      materialCache.clear();
       labelResources.forEach((resource) => {
         resource.texture.dispose();
         resource.material.dispose();
