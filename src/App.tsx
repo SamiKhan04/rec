@@ -524,6 +524,7 @@ function App() {
         />
         <p className="helper-text">
           Decorate functions with <code>@trace</code> (or <code>@trace(tree)</code>) before running the call below.
+          For memoization, type <code>from functools import cache</code> and place <code>@cache</code> above the <code>@trace</code> decorator.
         </p>
         <div className="controls">
           <button onClick={handleRunClick} disabled={!pyodideReady || isRunning}>
