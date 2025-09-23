@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
+import { TRACER_PY } from './tracerPrelude'
 
 function App() {
   const [code, setCode] = useState("");
@@ -7,6 +8,7 @@ function App() {
   const [error, setError] = useState("");
   const [output, setOutput] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  const [treeOutput, setTreeOutput] = useState("");
   const [pyodideReady, setPyodideReady] = useState(false);
   const pyodideRef = useRef<any>(null);
 
@@ -37,6 +39,7 @@ function App() {
 
   const handleRunClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
     setOutput("");
+    setTreeOutput("");
     setShowDropdown(false);
     if (!pyodideReady || !pyodideRef.current) {
       setError("Pyodide is still loading. Please wait.");
@@ -46,23 +49,35 @@ function App() {
     try {
       // Combine code and call
       if (!code.trim() || !call.trim()) {
-        setCode(`def fib(n):
+        setCode(`@trace(tree)
+def fib(n):
   if n == 0 or n == 1:
       return n
   return fib(n-1) + fib(n-2)`);
         setCall("fib(5)");
         return;
       }
-      const fullCode = `${code}\nresult = ${call}`;
+      const fullCode = `${TRACER_PY}\n\n${code}\n\nresult = ${call}\nfrom io import StringIO\nfrom contextlib import redirect_stdout\n_buffer = StringIO()\nif tree:\n    with redirect_stdout(_buffer):\n        print_ascii_tree(tree)\n    call_tree_output = _buffer.getvalue()\nelse:\n    call_tree_output = "No traced calls"`;
       await pyodideRef.current.runPythonAsync(fullCode);
-      const result = pyodideRef.current.globals.get('result');
-      const resultStr = result !== undefined ? String(result) : "No output";
+      const pyGlobals = pyodideRef.current.globals;
+      const resultProxy = pyGlobals.get('result');
+      const treeProxy = pyGlobals.get('call_tree_output');
+      const resultStr = resultProxy !== undefined ? resultProxy.toString() : "No output";
+      const treeStr = treeProxy !== undefined ? treeProxy.toString() : "";
       setOutput(resultStr);
+      setTreeOutput(treeStr ? treeStr.trimEnd() : "");
+      if (resultProxy && typeof resultProxy.destroy === 'function') {
+        resultProxy.destroy();
+      }
+      if (treeProxy && typeof treeProxy.destroy === 'function') {
+        treeProxy.destroy();
+      }
       setShowDropdown(true);
       setError("");
     } catch (err: any) {
       setError("Python error: " + err.message);
       setOutput("");
+      setTreeOutput("");
       setShowDropdown(false);
     }
     setTimeout(() => {
@@ -71,11 +86,12 @@ function App() {
   };
 
   return (
-    <>
-      <div className="input-box"> 
+    <div className="app-layout">
+      <div className="input-box">
         <textarea
           className="code-input"
-          placeholder="def fib(n):
+          placeholder="@trace(tree)
+def fib(n):
   if (n == 0 or n == 1):
       return n
   return fib(n-1) + fib(n-2)"
@@ -113,7 +129,13 @@ function App() {
           </div>
         )}
       </div>
-    </>
+      <div className="tree-box">
+        <h2>Call tree</h2>
+        <pre>
+          {treeOutput ? treeOutput : 'Run your traced function to see the call tree here.'}
+        </pre>
+      </div>
+    </div>
   );
 }
 
